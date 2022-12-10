@@ -12,29 +12,119 @@
   <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
 </head>
 <body>
-  <div class="calculator" id="calculator">
-    <div class="formula-screen"></div>
-    <div class="output-screen" id="display"></div>
-    <button class="cell clear" id="clear">AC</button>
-    <button class="cell sign" id="divide">/</button>
-    <button class="cell sign" id="multiply">x</button>
-    <button class="cell" id="seven">7</button>
-    <button class="cell" id="eight">8</button>
-    <button class="cell" id="nine">9</button>
-    <button class="cell sign" id="subtract">-</button>
-    <button class="cell" id="four">4</button>
-    <button class="cell" id="five">5</button>
-    <button class="cell" id="six">6</button>
-    <button class="cell sign" id="add">+</button>
-    <button class="cell" id="one">1</button>
-    <button class="cell" id="two">2</button>
-    <button class="cell" id="three">3</button>
-    <button class="cell equals" id="equals">=</button>
-    <button class="cell zero" ied="zero">0</button>
-    <button class="cell" id="decimal">.</button>
-  </div>
+  <div class="calculator" id="calculator"></div>
   <script type="text/babel">
-    
+    class GetButton extends React.Component {
+      constructor(props) {
+        super(props);
+        this.handleClick = this.handleClick.bind(this);
+      }
+
+      handleClick(e) {
+        this.props.onButtonClick(e.target.dataset.value);
+      }
+
+      render() {
+        return (
+          <button 
+            className={`cell ${this.props.class}`} 
+            id={this.props.id} 
+            onClick={this.handleClick} 
+            data-value={this.props.value}>{this.props.value}</button>
+        );
+      }
+    }
+
+    class Calculator extends React.Component {
+      constructor(props) {
+        super(props);
+        this.state = {
+          output: '',
+          formulaOutput: '',
+          limit: false,
+          limitMaxDisplay: 22,
+          limitTimeoutId: 0,
+          limitTimeoutDisplay: 1500,
+          limitText: 'DIGIT LIMIT MET'
+        }
+
+        this.handleClearClick = this.handleClearClick.bind(this);
+        this.handleNumberClick = this.handleNumberClick.bind(this);
+      }
+
+      handleClearClick() {
+        clearTimeout(this.state.limitTimeoutId);
+        this.setState({
+          output: '0',
+          formulaOutput: '',
+          limit: false,
+          limitTimeoutId: 0
+        });
+      }
+
+      handleNumberClick(value) {
+        this.setState(state => {
+          const result = {
+            output: /^0/.test(state.output) ? value : state.output + value,
+          }
+
+          if (this.state.limit) {
+            result.output = state.limitText;
+          } else {
+            result.formulaOutput = result.output;
+          }
+
+          if (result.output.length === state.limitMaxDisplay) {
+            result.formulaOutput = result.output;
+            result.output = state.limitText;
+            result.limit = true;
+          }
+
+          return result;
+        }, () => {
+          if (!this.state.limit) {
+            return;
+          }
+
+          clearTimeout(this.state.limitTimeoutId);
+          const id = setTimeout(() => {
+            this.setState({
+              output: this.state.formulaOutput
+            });
+          }, this.state.limitTimeoutDisplay);
+          
+          this.setState({ limitTimeoutId: id });
+        });
+      }
+
+      render() {
+        const divideMulti = [{ class: 'sign', id: 'divide', value: '/' }, { class: 'sign', id: 'multiply', value: 'x' }];
+        const eightNine = [{ id: 'eight', value: '8' }, { id:'nine', value: '9' }];
+        const fourToSix = [{ id: 'four', value: '4' }, { id:'five', value: '5' }, { id: 'six', value: '6'}];
+        const oneToThree = [{ id: 'one', value: '1' }, { id:'two', value: '2' }, { id: 'three', value: '3'}];
+
+        return (
+          <React.Fragment>
+            <div className="formula-screen">{this.state.formulaOutput}</div>
+            <div className="output-screen" id="display">{this.state.output}</div>
+            <GetButton id="clear" class="clear" value="AC" onButtonClick={this.handleClearClick} />
+            {divideMulti.map((o, i) => <GetButton id={o.id} key={i} class={o.class} value={o.value} />)}
+            <GetButton id="seven" value="7" onButtonClick={this.handleNumberClick} />
+            {eightNine.map((o, i) => <GetButton id={o.id} key={i} value={o.value} onButtonClick={this.handleNumberClick} />)}
+            <GetButton id="subtract" class="sign" value="-" />
+            {fourToSix.map((o, i) => <GetButton id={o.id} key={i} value={o.value} onButtonClick={this.handleNumberClick} />)}
+            <GetButton id="add" class="sign" value="+" />
+            {oneToThree.map((o, i) => <GetButton id={o.id} key={i} value={o.value} onButtonClick={this.handleNumberClick} />)}
+            <GetButton id="equals" class="equals" value="=" />
+            <GetButton id="zero" class="zero" value="0" onButtonClick={this.handleNumberClick} />
+            <GetButton id="decimal" class="decimal" value="." />
+          </React.Fragment>
+        )
+      }
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('calculator'));
+    root.render(<Calculator />);
   </script>
 </body>
 </html>

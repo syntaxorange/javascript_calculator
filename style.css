@@ -29,6 +29,7 @@ body {
   height: 394px;
   margin: auto;
   padding: 5px;
+  user-select: none;
   border: 2px solid #47476b;
   background-color: #000000;
 }
