@@ -6,7 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Javascript Calculator</title>
   <link rel="stylesheet" href="style.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
@@ -26,10 +28,10 @@
 
       render() {
         return (
-          <button 
-            className={`cell ${this.props.class}`} 
-            id={this.props.id} 
-            onClick={this.handleClick} 
+          <button
+            className={`cell ${this.props.class}`}
+            id={this.props.id}
+            onClick={this.handleClick}
             data-value={this.props.value}>{this.props.value}</button>
         );
       }
@@ -40,6 +42,7 @@
         super(props);
         this.state = {
           output: '0',
+          outputTmp: '',
           formula: '',
           limit: false,
           limitMaxDisplay: 22,
@@ -50,9 +53,26 @@
 
         this.handleClearClick = this.handleClearClick.bind(this);
         this.handleNumberClick = this.handleNumberClick.bind(this);
-        this.handleDecimalClick = this.handleDecimalClick.bind(this);
-        this.handleSubtractClick = this.handleSubtractClick.bind(this);
+        this.handleSignClick = this.handleSignClick.bind(this);
         this.handleEqualsClick = this.handleEqualsClick.bind(this);
+      }
+
+      getNumberFormula(state, value) {
+        const hasEqual =  /=/.test(state.formula);
+        
+        if (value === '.' && (!state.formula || hasEqual)) {
+          return '0.';
+        } else {
+          return hasEqual ? value : state.formula + value;
+        }
+      }
+
+      getNumberOutput(state, value) {
+        if (/=/.test(state.formula)) {
+          return value === '.' ? '0.' : value;
+        } else {
+          return state.output.replace(/^\D/, '') + value
+        }
       }
 
       handleClearClick() {
@@ -60,95 +80,156 @@
         this.setState({
           output: '0',
           formula: '',
+          outputTmp: '',
           limit: false,
           limitTimeoutId: 0
         });
       }
 
+      removeExtraPoints(value, separator) {
+        const arr = value.split(new RegExp(separator));
+
+        return arr.map(el => {
+          const r = el.replace(/(\.)\.*/g, '$1').match(/(\d+\.)(.*)/)
+
+          if (r === null) {
+            return el;
+          }
+
+          return r[1] + r[2].replace(/\./g, '');
+        }).join('');
+      }
+
+      removeExtraSigns(prop) {
+        this.setState((state) => {
+          const zeroStartReg = /^0(?=\d)/;
+          const doubleAddReg = /(\+)\+*/g;
+          const doubleDivideReg = /(\/)\/*/g;
+          const doubleMultiplyReg = /(x)x*/g;
+          const tripleSubtractReg = /(--)-*/g;
+          let result = state[prop]
+            .replace(zeroStartReg, '')
+            .replace(doubleAddReg, '$1')
+            .replace(doubleDivideReg, '$1')
+            .replace(doubleMultiplyReg, '$1')
+            .replace(tripleSubtractReg, '$1');
+
+          result = this.removeExtraPoints(result, /(\/|x|-|\+)/);
+
+          return {
+            [prop]: result
+          }
+        });
+      }
+
+      refreshOutput() {
+        if (!this.state.limit) {
+          return;
+        }
+
+        clearTimeout(this.state.limitTimeoutId);
+        const id = setTimeout(() => {
+          this.setState({
+            output: this.state.outputTmp
+          });
+        }, this.state.limitTimeoutDisplay);
+
+        this.setState({ limitTimeoutId: id });
+      }
+
       handleNumberClick(value) {
         this.setState(state => {
-          const result = {
-            output: /^0(?!\.)/.test(state.output) ? value : state.output + value,
-          }
-
+          let output = this.getNumberOutput(state, value);
+          let outputTmp = '';
+          let limit = false;
+         
           if (this.state.limit) {
-            result.output = state.limitText;
-          } else {
-            result.formula = result.output;
+            return { output: state.limitText }
+          }
+         
+          if (output.length === state.limitMaxDisplay) {
+            outputTmp = output;
+            output = state.limitText;
+            limit = true;
           }
 
-          if (result.output.length === state.limitMaxDisplay) {
-            result.formula = result.output;
-            result.output = state.limitText;
-            result.limit = true;
+          return {
+            output: output,
+            formula: this.getNumberFormula(state, value),
+            outputTmp,
+            limit
           }
-
-          return result;
         }, () => {
-          if (!this.state.limit) {
+          this.removeExtraSigns('formula');
+          this.removeExtraSigns('output');
+          this.refreshOutput();
+        });
+      }
+
+      handleSignClick(value) {
+        this.setState((state) => {
+          if (/=/g.test(state.formula)) {
+            return state;
+          }
+
+          if (/\/|x|-|\+/.test(value) && /\/|x|--|\+/.test(state.output)) {
             return;
           }
 
-          clearTimeout(this.state.limitTimeoutId);
-          const id = setTimeout(() => {
-            this.setState({
-              output: this.state.formula
-            });
-          }, this.state.limitTimeoutDisplay);
-          
-          this.setState({ limitTimeoutId: id });
-        });
-      }
-
-      handleDecimalClick(value) {
-        this.setState(state => {
-          const result = /\.(?!\.)/.test(state.output) ? state.output : state.output + value;
-          return {
-            output: result,
-            formula: result
+          if (state.limit) {
+            return { output: state.limitText }
           }
-        });
-      }
 
-      handleSubtractClick(value) {
-        this.setState(state => {
-          const result = /\d+/.test(state.formula) ? state.formula + value : value;
           return {
-            output: result,
-            formula: result
+            output: value,
+            formula: state.formula + value
           }
+        }, () => {
+          this.removeExtraSigns('formula');
+          this.removeExtraSigns('output');
+          this.refreshOutput();
         });
       }
-
+      
       handleEqualsClick() {
         this.setState(state => {
+          const formula = state.formula.replace(/\D*$/, '');
+
+          if (/=/g.test(formula) || formula.length <= 2 || state.limit) {
+            return;
+          }
+
+          const formulaTmp = formula.replace(/--/g, '- -').replace(/x/, '*');
+          const output = eval(formulaTmp).toString();
+
           return {
-            output: eval(state.output)
+            output: output,
+            formula: `${formula}=${output}`
           }
         });
       }
 
       render() {
-        const divideMulti = [{ class: 'sign', id: 'divide', value: '/' }, { class: 'sign', id: 'multiply', value: '*' }];
-        const eightNine = [{ id: 'eight', value: '8' }, { id:'nine', value: '9' }];
-        const fourToSix = [{ id: 'four', value: '4' }, { id:'five', value: '5' }, { id: 'six', value: '6'}];
-        const oneToThree = [{ id: 'one', value: '1' }, { id:'two', value: '2' }, { id: 'three', value: '3'}];
+        const divideMulti = [{ class: 'sign', id: 'divide', value: '/' }, { class: 'sign', id: 'multiply', value: 'x' }];
+        const eightNine = [{ id: 'eight', value: '8' }, { id: 'nine', value: '9' }];
+        const fourToSix = [{ id: 'four', value: '4' }, { id: 'five', value: '5' }, { id: 'six', value: '6' }];
+        const oneToThree = [{ id: 'one', value: '1' }, { id: 'two', value: '2' }, { id: 'three', value: '3' }];
 
         return (
           <React.Fragment>
             <div className="formula-screen">{this.state.formula}</div>
             <div className="output-screen" id="display">{this.state.output}</div>
             <GetButton id="clear" class="clear" value="AC" onButtonClick={this.handleClearClick} />
-            {divideMulti.map((o, i) => <GetButton id={o.id} key={i} class={o.class} value={o.value} onButtonClick={this.handleSubtractClick} />)}
+            {divideMulti.map((o, i) => <GetButton id={o.id} key={i} class={o.class} value={o.value} onButtonClick={this.handleSignClick} />)}
             <GetButton id="seven" value="7" onButtonClick={this.handleNumberClick} />
             {eightNine.map((o, i) => <GetButton id={o.id} key={i} value={o.value} onButtonClick={this.handleNumberClick} />)}
-            <GetButton id="subtract" class="sign" value="-" onButtonClick={this.handleSubtractClick} />
+            <GetButton id="subtract" class="sign" value="-" onButtonClick={this.handleSignClick} />
             {fourToSix.map((o, i) => <GetButton id={o.id} key={i} value={o.value} onButtonClick={this.handleNumberClick} />)}
-            <GetButton id="add" class="sign" value="+" onButtonClick={this.handleSubtractClick} />
+            <GetButton id="add" class="sign" value="+" onButtonClick={this.handleSignClick} />
             {oneToThree.map((o, i) => <GetButton id={o.id} key={i} value={o.value} onButtonClick={this.handleNumberClick} />)}
             <GetButton id="equals" class="equals" value="=" onButtonClick={this.handleEqualsClick} />
             <GetButton id="zero" class="zero" value="0" onButtonClick={this.handleNumberClick} />
-            <GetButton id="decimal" class="decimal" onButtonClick={this.handleDecimalClick} value="." />
+            <GetButton id="decimal" class="decimal" onButtonClick={this.handleNumberClick} value="." />
           </React.Fragment>
         )
       }
