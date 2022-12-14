@@ -58,17 +58,17 @@
       }
 
       getNumberFormula(state, value) {
-        const hasEqual =  /=/.test(state.formula);
-        
-        if (value === '.' && (!state.formula || hasEqual)) {
+        const formula = state.formula;
+
+        if (value === '.' && (!formula || /=|^[/x+-]$/.test(formula))) {
           return '0.';
         } else {
-          return hasEqual ? value : state.formula + value;
+          return /=/.test(formula) ? value : formula + value;
         }
       }
 
       getNumberOutput(state, value) {
-        if (/=/.test(state.formula)) {
+        if (/=|^[/x+-]$/.test(state.formula)) {
           return value === '.' ? '0.' : value;
         } else {
           return state.output.replace(/^\D/, '') + value
@@ -86,8 +86,8 @@
         });
       }
 
-      removeExtraPoints(value, separator) {
-        const arr = value.split(new RegExp(separator));
+      removeExtraPoints(value) {
+        const arr = value.split(new RegExp(/(\/|x|-|\+)/));
 
         return arr.map(el => {
           const r = el.replace(/(\.)\.*/g, '$1').match(/(\d+\.)(.*)/)
@@ -102,19 +102,25 @@
 
       removeExtraSigns(prop) {
         this.setState((state) => {
-          const zeroStartReg = /^0(?=\d)/;
-          const doubleAddReg = /(\+)\+*/g;
-          const doubleDivideReg = /(\/)\/*/g;
-          const doubleMultiplyReg = /(x)x*/g;
-          const tripleSubtractReg = /(--)-*/g;
+          const invalidZeroStart = /^0(?=\d)/;
+          const invalidDoubleAdd = /(\+)\+*/g;
+          const invalidDoubleDivide = /(\/)\/*/g;
+          const invalidDoubleMultiply = /(x)x*/g;
+          const invalidTripleSubtract = /(--)-*/g;
+          const invalidStartSign = /(^[/x]\d{1}$)/g;
+          const invalidOrderSigns = /\/-?(x|\+)|x-?(\/|\+)|\+-?(\/|x)|-{1,2}(\/|x|\+)/g;
+          const invalidSubtract = /(\/|x|\+)(-){2}|^\D{1}(\D{1})$/g;
           let result = state[prop]
-            .replace(zeroStartReg, '')
-            .replace(doubleAddReg, '$1')
-            .replace(doubleDivideReg, '$1')
-            .replace(doubleMultiplyReg, '$1')
-            .replace(tripleSubtractReg, '$1');
+            .replace(invalidZeroStart, '')
+            .replace(invalidStartSign, '0$1')
+            .replace(invalidTripleSubtract, '$1')
+            .replace(invalidOrderSigns, '$1$2$3$4')
+            .replace(invalidDoubleAdd, '$1')
+            .replace(invalidDoubleDivide, '$1')
+            .replace(invalidDoubleMultiply, '$1')
+            .replace(invalidSubtract, '$1$2$3');
 
-          result = this.removeExtraPoints(result, /(\/|x|-|\+)/);
+          result = this.removeExtraPoints(result);
 
           return {
             [prop]: result
@@ -172,10 +178,6 @@
             return state;
           }
 
-          if (/\/|x|-|\+/.test(value) && /\/|x|--|\+/.test(state.output)) {
-            return;
-          }
-
           if (state.limit) {
             return { output: state.limitText }
           }
@@ -195,11 +197,11 @@
         this.setState(state => {
           const formula = state.formula.replace(/\D*$/, '');
 
-          if (/=/g.test(formula) || formula.length <= 2 || state.limit) {
+          if (/=/g.test(formula) || state.limit) {
             return;
           }
 
-          const formulaTmp = formula.replace(/--/g, '- -').replace(/x/, '*');
+          const formulaTmp = formula.replace(/--/g, '- -').replace(/x/g, '*');
           const output = eval(formulaTmp).toString();
 
           return {
