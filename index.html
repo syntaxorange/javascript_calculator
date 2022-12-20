@@ -197,7 +197,7 @@
         this.setState(state => {
           const formula = state.formula.replace(/\D*$/, '');
 
-          if (/=/g.test(formula) || state.limit) {
+          if (!formula || /=/g.test(formula) || state.limit) {
             return;
           }
 
